@@ -38,6 +38,14 @@ class xml_report_server extends uvm_report_server;
 
   uvm_report_server old_report_server;
   uvm_report_global_server global_server;
+  string test_name;
+  string suite_name;
+  bit use_id_as_class_name;
+  bit use_id_as_test_name;
+  string class_name;
+  string testcase_ng[string]      ; //= {default:"\n"};
+  string testcase_message[string] ; //= {default:"\n"};
+  integer logfile_handle;
 
   // characters that are invalid XML that have to be encoded
   string replacements[string] = '{ "<" : "&lt;",
@@ -46,13 +54,9 @@ class xml_report_server extends uvm_report_server;
                                    "'" : "&apos;",
                                    "\"": "&quot;"
                                  };
-  string test_name;
-  string testcase_ng[string]      ; //= {default:"\n"};
-  string testcase_message[string] ; //= {default:"\n"};
-  integer logfile_handle;
 
   /// constructor
-  function new(string name,string log_filename = "");
+  function new(string name,string log_filename = "",string suitename = "",string classname = "",string packagename = "",bit use_id_as_testname = 0);
     super.new();
 
     test_name = name;
@@ -61,6 +65,26 @@ class xml_report_server extends uvm_report_server;
     if(log_filename=="")begin
       $swrite(log_filename,"%s.xml",name);
     end
+    if(suitename=="")begin
+      suite_name = test_name;
+    end else begin
+      suite_name = suitename;
+    end
+    if((packagename=="") && (classname==""))begin
+      // For backwards compatibility, if neither of these are specified, then use the ID as the class_name (like previously was done)
+      use_id_as_class_name = 1;
+      class_name = ""; 
+    end else if (packagename=="") begin
+      use_id_as_class_name = 0;
+      class_name = {classname,".",test_name};
+    end else if (classname=="") begin
+      use_id_as_class_name = 0;
+      class_name = {packagename,".",test_name};
+    end else begin
+      use_id_as_class_name = 0;
+      class_name = {packagename,".",classname};
+    end
+    use_id_as_test_name = use_id_as_testname;
     logfile_handle = $fopen(log_filename, "w");
     report_header(logfile_handle);
   endfunction
@@ -105,17 +129,29 @@ class xml_report_server extends uvm_report_server;
   function void report_header(UVM_FILE file = 0);
     string str;
     $swrite(str, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-    $swrite(str, "%s\n<testsuite%s>",str,{xla("name",test_name)});
+    $swrite(str, "%s\n<testsuite%s>",str,{xla("name",suite_name)});
     f_display(file,str);
   endfunction
 
   /// Output JUnit XML closing tags to log file
   function void report_footer(UVM_FILE file = 0);
     integer result;
+    string final_classname;
+    string final_testname;
     $fflush(file);
     foreach (testcase_message[id])begin
       result = $fseek(logfile_handle, 0, 2);
-      f_display(logfile_handle, xle_n("testcase",{testcase_ng[id],xle_n("system-out",testcase_message[id])},{xla("classname",id),xla("name",test_name)}));
+      if (use_id_as_class_name) begin
+        final_classname = id;
+      end else begin
+        final_classname = class_name;
+      end
+      if (use_id_as_test_name) begin
+        final_testname = id;
+      end else begin
+        final_testname = test_name;
+      end
+      f_display(logfile_handle, xle_n("testcase",{testcase_ng[id],xle_n("system-out",testcase_message[id])},{xla("classname",final_classname),xla("name",final_testname)}));
     end
     f_display(logfile_handle, "</testsuite>");
   endfunction
