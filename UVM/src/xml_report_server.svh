@@ -47,8 +47,8 @@ class xml_report_server extends uvm_report_server;
                                    "\"": "&quot;"
                                  };
   string test_name;
-  string testcase_ng[string]      ; //= {default:"\n"};
-  string testcase_message[string] ; //= {default:"\n"};
+  string testcase_ng[string]      ; //= '{default:"\n"};
+  string testcase_message[string] ; //= '{default:"\n"};
   integer logfile_handle;
 
   /// constructor
